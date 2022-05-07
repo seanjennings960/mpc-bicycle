@@ -20,3 +20,10 @@ To remove env:
 ```
 
 Simple as that. For now...
+
+## Activate Mujoco Environment
+
+```bash
+source ./activate
+source ./init
+```
