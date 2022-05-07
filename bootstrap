@@ -1,0 +1,11 @@
+#!/bin/bash
+
+set +e
+
+ENV_NAME=venv
+
+python3 -m venv ${ENV_NAME}
+ln -s ${ENV_NAME}/bin/activate activate
+source ./activate
+
+pip3 install -r requirements.txt
