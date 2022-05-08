@@ -1,15 +1,25 @@
 #!/usr/bin/env python3
 """
-Example of how bodies interact with each other. For a body to be able to
-move it needs to have joints. In this example, the "robot" is a red ball
-with X and Y slide joints (and a Z slide joint that isn't controlled).
-On the floor, there's a cylinder with X and Y slide joints, so it can
-be pushed around with the robot. There's also a box without joints. Since
-the box doesn't have joints, it's fixed and can't be pushed around.
+MuJoCo Model of bicycle including important geometric factors of fork geometry
+which affect stability. Parameterization follows the notation used by
+Meijaard, etc al. (see docs/linearized_bicycle_equations.pdf).
 """
-from mujoco_py import load_model_from_xml, MjSim, MjViewer
+
+
+from pynput import keyboard
+from mujoco_py import const, load_model_from_xml, MjSim, MjViewer
 import numpy as np
-import os
+
+# TODO:
+# 1. Make mass properties of bicycle more readily configurable.
+# 2. Site actuation at the bike seat!
+# 3. Convert to a more concise state to use for control.
+# 4. Wrap XML into Bicycle class to make things prettier.
+# 5. Path class -> piecewise:
+#       a. accelerate in straight line to constant velocity
+#       b. feedforward impulse to one side to get wheel to turn
+#       c. maintain curve
+#       d. Impulse base to left to straighten
 
 R_BACK = 0.3  # m
 R_FRONT = 0.35  # m
@@ -19,6 +29,8 @@ HEAD_ANGLE = 12  # deg
 
 
 class Bicycle:
+
+    """Geometric model for bicycle."""
 
     def __init__(self, r_b, r_f, w, c, lbda):
         self.r_b = r_b
@@ -38,8 +50,6 @@ class Bicycle:
         # Coordinates in global coordinate system.
         fx = self.w - self.l_b * cos
         fz = -self.l_b * sin - self.r_b + self.r_f
-        print('fx: ', fx)
-        print('fz: ', fz)
         self.fork_x = cos * fx + sin * fz
         self.fork_z = -sin * fx + cos * fz
 
@@ -75,14 +85,17 @@ class Bicycle:
 
 
 def generate_xml_code(bic):
-    print(bic.r_back)
-    print(bic.fork_z)
-    print(bic.fork_x)
     return f"""
     <?xml version="1.0" ?>
     <mujoco>
         <option timestep="0.005" />
         <option collision="predefined"/>
+        <asset>
+            <texture builtin="checker" height="100" name="texplane"
+                rgb1="0 0 0" rgb2="0.8 0.8 0.8" type="2d" width="100"/>
+            <material name="geom" texture="texplane" texuniform="true"/>
+        </asset>
+
         <worldbody>
             <body name="rear wheel" pos="0 0 {bic.r_back}">
                 <joint damping="0" name="slide0" pos="0 0 0" type="free"/>
@@ -107,7 +120,8 @@ def generate_xml_code(bic):
             </body>
             </body>
             <body name="floor" pos="0 0 -.1">
-                <geom name="floor" condim="3" size="4.0 4.0 0.02" rgba="0 1 0 1" type="box"/>
+                <geom name="floor" condim="3" size="100.0 100.0 0.02" rgba="0 1 0 1" type="plane"
+                    material="geom"/>
             </body>
         </worldbody>
         <contact>
@@ -116,9 +130,45 @@ def generate_xml_code(bic):
         </contact>
         <actuator>
             <motor gear="2000.0" joint="pedal"/>
+            <motor gear="2000.0" joint="steering"/>
         </actuator>
     </mujoco>
     """
+
+class ControlOutput:
+
+    """Convert arrow key inputs into very simple control output."""
+
+    def __init__(self, magn_forward=0.001, magn_lr=0.0001):
+        self.value = np.zeros(2, dtype=np.float64)
+        self.magn_forward = magn_forward
+        self.magn_lr = magn_lr
+
+    def on_press(self, key):
+        if self.value[0] == 0:
+            if key == keyboard.Key.up:
+                # print('we up')
+                self.value[0] = self.magn_forward
+            elif key == keyboard.Key.down:
+                # print('we down')
+                self.value[0] = - self.magn_forward
+
+        if self.value[1] == 0:
+            if key == keyboard.Key.right:
+                # print('we right')
+                self.value[1] = self.magn_lr
+            elif key == keyboard.Key.left:
+                # print('we left')
+                self.value[1] = - self.magn_lr
+
+    def on_release(self, key):
+        if key == keyboard.Key.up or key == keyboard.Key.down:
+            # print('we back to the ground')
+            self.value[0] = 0
+        if key == keyboard.Key.right or key == keyboard.Key.left:
+            # print('goddamn aint we deft')
+            self.value[1] = 0
+
 
 def main():
     xml = generate_xml_code(
@@ -131,16 +181,19 @@ def main():
     model = load_model_from_xml(xml)
     sim = MjSim(model)
     viewer = MjViewer(sim)
-    t = 0
-    sim.data.ctrl[0] = 0.0000
-    while True:
-        # if t > 1000:
-        #     sim.data.ctrl[0] *= -1.01
-        # sim.data.ctrl[1] = math.sin(t / 10.) * 0.01
-        t += 1
-        sim.step()
-        viewer.render()
+    output = ControlOutput()
 
+    # Setup camera to follow the bike.
+    viewer.cam.type = const.CAMERA_TRACKING
+    viewer.cam.trackbodyid = model.body_names.index('rear frame')
+    viewer.cam.distance = 10
+
+    with keyboard.Listener(on_press=output.on_press,
+                           on_release=output.on_release) as l:
+        while True:
+            sim.data.ctrl[:] = output.value
+            sim.step()
+            viewer.render()
 
 if __name__ == '__main__':
     main()
