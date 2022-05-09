@@ -1,3 +1,13 @@
 # Add requirements here. For example:
+click >=8.1,<8.2
 mujoco-py >= 2.1,<2.2
 pynput >=1.7,<1.8
+numpy-quaternion == 2022.4.2
+matplotlib >=3.5,<3.6
+
+# Developer tools
+jupyter >=1.0,<1.1
+flake8 >=4.0,<4.1
+
+# Web visualization app
+django >=4.0,<4.1
