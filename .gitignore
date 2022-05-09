@@ -1,2 +1,5 @@
 activate
 venv
+notebooks
+__pycache__
+*.np[yz]
