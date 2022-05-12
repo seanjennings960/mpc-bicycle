@@ -3,8 +3,8 @@ import numpy as np
 from pynput import keyboard
 from mujoco_py import const, MjSim, MjViewer
 
-from model import Bicycle
-from control import PathController
+from mpc_bike.model import Bicycle
+from mpc_bike.control import PathController
 
 
 class ControlOutput:

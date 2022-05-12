@@ -3,3 +3,4 @@ venv
 notebooks
 __pycache__
 *.np[yz]
+*.egg-info/

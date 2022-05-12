@@ -9,3 +9,6 @@ ln -s ${ENV_NAME}/bin/activate activate
 source ./activate
 
 pip3 install -r requirements.txt
+
+cd mpc_bike
+pip3 install -e .
